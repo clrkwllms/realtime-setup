@@ -7,7 +7,7 @@ After=syslog.target
 ## Not a daemon
 [Service]
 Type=simple
-ExecStart=/usr/bin/rt-setup
+ExecStart=/usr/bin/realtime-setup
 
 [Install]
 WantedBy=multi-user.target

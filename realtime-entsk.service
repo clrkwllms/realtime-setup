@@ -6,8 +6,8 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=forking
-PIDFile=/run/rt-entsk.pid
-ExecStart=/usr/sbin/rt-entsk
+PIDFile=/run/realtime-entsk.pid
+ExecStart=/usr/sbin/realtime-entsk
 
 [Install]
 WantedBy=multi-user.target
