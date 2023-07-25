@@ -18,46 +18,38 @@ DISTGITDIR :=	../realtime-setup.rhpkg
 DISTGITBRANCH := rhel-$(DISTVER)
 
 FILES	:=	realtime-setup-kdump 		\
-		slub_cpu_partial_off 	\
-		rhel-rt.rules 		\
-		kernel-is-rt 		\
+		slub_cpu_partial_off 		\
+		rhel-rt.rules 			\
+		kernel-is-rt 			\
 		realtime-setup.sysconfig 	\
-		realtime-setup.systemd 	\
-		realtime.conf 		\
-		realtime-entsk.service 	\
-		realtime-setup.service	\
+		realtime-setup.systemd 		\
+		realtime.conf 			\
+		realtime-entsk.service 		\
+		realtime-setup.service		\
 		realtime-setup.spec
 
 EXT 	:=	bz2
 TARBALL	:=	realtime-setup-v$(VERSION).tar.$(EXT)
 
 
-all:  realtime-entsk
+all:  build
+
+build: realtime-entsk
 
 realtime-entsk: enable-netsocket-tstamp-static-key.c
 	$(CC) $(CFLAGS) -c enable-netsocket-tstamp-static-key.c
 	$(CC) $(LDFLAGS) -o realtime-entsk enable-netsocket-tstamp-static-key.o
-
-rpm:	srpm
-	rpmbuild $(RPMARGS) -ba realtime-setup.spec
-
-rpmdir:
-	@[ -d rpm ] || mkdir -p rpm/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
-
-srpm: clean rpmdir tarball
-	mv realtime-setup-v$(VERSION).tar.$(EXT) rpm/SOURCES
-	rpmbuild $(RPMARGS) -bs realtime-setup.spec
 
 clean:
 	rm -f *~ *.tar.$(EXT)
 	rm -rf rpm
 	rm -f realtime-entsk *.o
 
-tarball: rpmdir
+tarball:  clean
 	git archive --format=tar --prefix=realtime-setup-v$(VERSION)/ HEAD | \
 		bzip2 >realtime-setup-v$(VERSION).tar.$(EXT)
 
-install:
+install:	build
 	install -m 755 -D realtime-setup-kdump  $(DEST)/usr/bin/realtime-setup-kdump
 	install -m 755 -D slub_cpu_partial_off $(DEST)/usr/bin/slub_cpu_partial_off
 	install -m 644 -D rhel-rt.rules $(DEST)/etc/udev/rules.d/99-rhel-rt.rules
@@ -68,10 +60,3 @@ install:
 	install -m 644 -D realtime-entsk.service $(DEST)/usr/lib/systemd/system/realtime-entsk.service
 	install -m 755 -D -s realtime-entsk $(DEST)/usr/sbin/realtime-entsk
 	install -m 644 -D realtime-setup.service $(DEST)/usr/lib/systemd/system/realtime-setup.service
-
-dist-git: tarball
-	cd $(DISTGITDIR) && rhpkg switch-branch --fetch $(DISTGITBRANCH)
-	cp $(FILES) $(DISTGITDIR)
-	cp realtime-setup-$(VERSION).tar.$(EXT) $(DISTGITDIR)
-	cd $(DISTGITDIR) && rhpkg new-sources realtime-setup-$(VERSION).tar.$(EXT)
-	@echo "files copied to $(DISTGITDIR)"
