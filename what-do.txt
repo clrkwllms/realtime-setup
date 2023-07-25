@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+Looking at the specfile, here's what realtime-setup gets you:
+
+1. Create a realtime group:
+   /usr/sbin/groupadd -f -g 71 realtime
+2. Turns on "panic on hung task":
+   sysctl -w kernel.hung_task_panic=0 >/dev/null 2>&1
+3. Sets "hung task" threshold to 600 seconds:
+   sysctl -w kernel.hung_task_timeout_secs=600
+4. Installs and enables systemd realtime-setup service file:
+   install -m 644 -D realtime-setup.service /usr/lib/systemd/system/realtime-setup.service
+   systemctl enable realtime-setup
+5. installs realtime rules in /etc/security/limits.d/realtime.conf:
+   @realtime       soft    cpu             unlimited
+   @realtime       -       rtprio          99
+   @realtime       -       nice            -20
+   @realtime       -       memlock         unlimited
+6. install udev rules in /etc/udev/rules.d/99-rhel-rt.rules
+   # udev rules specific to RHEL-RT Realtime kernel
+   # insure /dev/rtc points to /dev/rtc0
+   # we use PROGRAM rather than SYMLINK because there is
+   # a (good) possibility that a /dev/rtc device file
+   # already exists and we want to replace it (hence the
+   # ln -sf)
+   KERNEL=="rtc0", PROGRAM+="/bin/ln -sf rtc0 /dev/rtc"
+   # Give permission to the realtime group to write a zero to /dev/cpu_dma_latency
+   # This will tell the power management system not to transition to a high cstate
+   KERNEL=="cpu_dma_latency", GROUP="realtime"
+   # Give permission to the realtime group to read the per cpu msr and cpuid
+   # registers. This is needed by cyclictest in rt-tests when using the new
+   # feature to read the smi counters. This is necessary but not sufficient
+   # A program that wants to access these registers will also need CAP_SYS_RAWIO
+   SUBSYSTEM=="msr", GROUP="realtime", MODE="0640"
+   SUBSYSTEM=="cpuid", GROUP="realtime", MODE="0640"
+7. install sysconfig rules for RT in /etc/sysconfig/realtime-setup
+   #
+   # Decide whether to turn off SLUB cpu_partial support
+   #
+   SLUB_CPU_PARTIAL="off"
+8. install script to turn off SLUB cpu-partial support:
+   /usr/bin/slub_cpu_partial_off
+9. install kernel-is-rt script in /usr/sbin/kernel-is-rt
+10. install a C binary that enables socket timestamping:
+    install -m 755 -D -s realtime-entsk /usr/sbin/realtime-entsk

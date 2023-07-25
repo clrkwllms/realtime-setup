@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=RT Enable Netsocket Timestap Static Key daemon
+After=syslog.target network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=forking
+PIDFile=/run/rt-entsk.pid
+ExecStart=/usr/sbin/rt-entsk
+
+[Install]
+WantedBy=multi-user.target

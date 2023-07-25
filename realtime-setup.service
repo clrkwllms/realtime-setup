@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+[Unit]
+Description=RHEL-RT environment details setup
+After=syslog.target
+
+## Not a daemon
+[Service]
+Type=simple
+ExecStart=/usr/bin/rt-setup
+
+[Install]
+WantedBy=multi-user.target

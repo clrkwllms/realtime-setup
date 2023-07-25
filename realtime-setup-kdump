@@ -1,0 +1,173 @@
+#!/usr/bin/bash
+#
+# script to update /etc/sysconfig/kdump to use the latest
+# kernel package as the dump kernel
+#
+# optional argument --grub causes kdump kernel cmdline to
+# be added to rt kernel grub entries
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+
+me=$(basename $0)
+rpmcmd='rpm -q --last'
+
+function fatal () {
+    echo "$me: " $1
+    exit -1
+}
+
+function usage () {
+    echo "usage: $me [-g|--grub] [-r|--rhel] [-v|--verbose] [-h|--help]"
+    echo "       --grub    - add crashkernel arg to rt grub entries"
+    echo "       --rhel    - use the RHEL-8 kernel as the kdump kernel"
+    echo "                   (the default is to use the RHEL-RT kernel)"
+    echo "       --verbose - print out actions"
+    echo "       --help    - print this message"
+    exit -1
+}
+
+function report() {
+    [ $verbose -eq 1 ] && echo $1
+}
+
+# return the latest package version of specified package name
+function latest_package_ver() {
+    local pkg=$1
+    local ver=$($rpmcmd $pkg | head -1 | awk '{print $1}')
+
+    if [ $? -ne 0 ]; then
+	fatal "  error fetching version for $pkg"
+    fi
+    echo ${ver#$pkg-}
+    return 0
+}
+
+# get the kernel version of hhe latest installed kernel
+function vmlinux_ver() {
+    local ver=$1
+    local vmver=''
+    for i in $(cd /boot; echo vmlinuz-*); do
+	if [ "${i#vmlinuz-$ver}" != "$i" ]; then
+	    vmver=${i#vmlinuz-}
+	    echo $vmver
+	    return 0
+	fi
+    done
+    return 1
+}
+
+# find all the grub indexs for installed rhel-rt kernels
+# returns a comma-separated list of indices for use
+# by the grubby command
+function find_rt_kernel_indexes_rhel_rt() {
+    local awkscript='BEGIN{FS="="; ORS=","} $1 ~ /^index/{idx=$2;}
+		$2 ~ /.rt.*.el8.x86_64/ &&
+		$1 ~ /^kernel/ {print idx}'
+    local rt_idx_list=$(/sbin/grubby --info=ALL | /usr/bin/awk "$awkscript")
+
+    echo $rt_idx_list | sed -e 's/,$//'
+    return 0
+}
+
+#############################################################################
+
+# make sure we're root
+if [ $(id -u) -ne 0 ]; then
+    echo "  must be root to run $me!"
+    usage
+fi
+
+# process options
+dogrub=0
+userhel=0
+verbose=0
+TEMP=$(getopt --options "grvh" --longoptions="grub,rhel,verbose,help" -- "$@")
+if [ $? -ne 0 ]; then
+    usage
+fi
+eval set -- "$TEMP"
+while true; do
+    case "$1" in
+	-g|--grub)
+	    dogrub=1
+	    shift
+	    ;;
+	-r|--rhel)
+	    userhel=1
+	    shift
+	    ;;
+	-v|--verbose)
+	    verbose=1
+	    shift
+	    ;;
+	-h|--help)
+	    usage
+	    ;;
+	--) shift ; break ;;
+	*)
+	    echo "internal error!"
+	    usage
+	    ;;
+    esac
+done
+
+# warn if /etc/sysconfig/kdump does not exist
+if [ ! -f /etc/sysconfig/kdump ]; then
+    echo "  File /etc/sysconfig/kdump not found."
+    echo "  Please, check your kexec-tools installation."
+    exit 1
+fi
+
+if [ $dogrub = 0 ]; then
+    echo "Not performing changes to /etc/grub.conf"
+    echo
+    # check if there is memory reserved for the kexec kernel
+    if ! cat /proc/cmdline | grep -e crashkernel > /dev/null; then
+        echo "  Kernel DOES NOT have memory reserved for kdump kernel..."
+        echo "  Use --grub option to enable crashkernel option on kernel command line"
+	echo
+    fi
+fi
+
+# select the right kdump kernel
+if [ $userhel -eq 1 ]; then
+	KDUMP_KERNEL="kernel"
+else
+	KDUMP_KERNEL="kernel-rt"
+fi
+# get the version of the latest installed kernel
+kver=$(latest_package_ver $KDUMP_KERNEL)
+if [ -z "$kver" ]; then
+    fatal "  Can't find $KDUMP_KERNEL package information!"
+fi
+
+report "  making kernel-$kver the kdump kernel"
+
+# find the vmlinux version info for the latest kernel package
+vmlinux_version=$(vmlinux_ver $kver)
+if [ -z "$vmlinux_version" ]; then
+    fatal "  Can't get vmlinux version!"
+fi
+
+# now edit the /etc/sysconfig/kdump file
+sed -e "s/^KDUMP_KERNELVER.*$/KDUMP_KERNELVER=\"$vmlinux_version\"/" \
+    /etc/sysconfig/kdump >/tmp/kdump.$$
+mv /etc/sysconfig/kdump /etc/sysconfig/kdump.save && \
+    mv /tmp/kdump.$$ /etc/sysconfig/kdump
+
+# if requested, update the grub entries for the rt kernels
+if [ $dogrub = 1 ]; then
+    rtver=$(latest_package_ver kernel-rt)
+    if [ -z "$rtver" ]; then
+	fatal "  Can't find kernel-rt package information!"
+    fi
+    # RHEL-RT kernel
+    kernels=$(find_rt_kernel_indexes_rhel_rt)
+    if [ ! -z $kernels ]; then
+        report "  adding 'crashkernel=auto' arg to grub entries: $kernels"
+        /sbin/grubby --update-kernel=$kernels --args="crashkernel=auto"
+    fi
+fi
+
+exit $?

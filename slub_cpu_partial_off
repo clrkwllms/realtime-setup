@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+#
+# shell script to turn SLUB cpu_partial logic off
+# for improved determinism
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+
+if [ "$(id -u)" != "0" ]; then
+   echo "Must be root to run $(basename $0)"
+   exit -1
+fi
+find /sys/kernel/slab -name 'cpu_partial' -print | \
+     while read f; do echo 0 > $f; done

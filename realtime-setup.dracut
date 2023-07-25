@@ -1,0 +1,2 @@
+fw_dir+=":/lib/firmware/$(uname -r)"
+

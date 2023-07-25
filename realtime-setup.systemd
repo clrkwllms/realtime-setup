@@ -1,0 +1,35 @@
+#!/usr/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+on_rt () {
+    if [ -f /sys/kernel/realtime ]; then
+        return 0
+    fi
+    return 1
+}
+
+prog="rt-setup"
+
+[ -e /etc/sysconfig/$prog ] && . /etc/sysconfig/$prog
+
+# is this a rhel-rt kernel?
+if ! on_rt; then
+    echo "Not running on a RHEL-RT kernel!"
+    exit 0
+fi
+
+# make sure that cpusets are mounted
+if ! grep cpuset /proc/mounts >/dev/null 2>&1; then
+    echo "cpusets not mounted!"
+    exit 2
+fi
+
+# if not running, start it up here, usually something like "daemon $exec"
+if [ "$SLUB_CPU_PARTIAL" == "off" ]; then
+    slub_cpu_partial_off
+    slub_retval=$?
+else
+    slub_retval=0
+fi
+
+exit $slub_retval

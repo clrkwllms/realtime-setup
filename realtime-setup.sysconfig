@@ -1,0 +1,6 @@
+#
+# Decide whether to turn off SLUB cpu_partial support
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+SLUB_CPU_PARTIAL="off"

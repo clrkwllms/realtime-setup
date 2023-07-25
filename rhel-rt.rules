@@ -1,0 +1,21 @@
+# udev rules specific to RHEL-RT Realtime kernel
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# insure /dev/rtc points to /dev/rtc0
+# we use PROGRAM rather than SYMLINK because there is
+# a (good) possibility that a /dev/rtc device file
+# already exists and we want to replace it (hence the
+# ln -sf)
+KERNEL=="rtc0", PROGRAM+="/bin/ln -sf rtc0 /dev/rtc"
+
+# Give permission to the realtime group to write a zero to /dev/cpu_dma_latency
+# This will tell the power management system not to transition to a high cstate
+KERNEL=="cpu_dma_latency", GROUP="realtime"
+
+# Give permission to the realtime group to read the per cpu msr and cpuid
+# registers. This is needed by cyclictest in rt-tests when using the new
+# feature to read the smi counters. This is necessary but not sufficient
+# A program that wants to access these registers will also need CAP_SYS_RAWIO
+SUBSYSTEM=="msr", GROUP="realtime", MODE="0640"
+SUBSYSTEM=="cpuid", GROUP="realtime", MODE="0640"
